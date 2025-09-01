@@ -1,2 +1,2 @@
-# QADS-
+# QADS
 ChatBot
