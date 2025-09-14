@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QADS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/style.css">
+    <script type="module" src="js/app.js"></script>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <a href="index.html" class="text-2xl font-bold text-violet-600">QADS</a>
+
+            <!-- Desktop Navigation -->
+            <div class="hidden md:flex items-center space-x-6">
+                <a href="index.html" class="nav-link text-slate-600 hover:text-violet-600 transition">Home</a>
+                <a href="chat.html" class="nav-link text-slate-600 hover:text-violet-600 transition">Chat</a>
+                <a href="instruction.html" class="nav-link text-slate-600 hover:text-violet-600 transition">Instructions</a>
+            </div>
+
+            <!-- Auth Section -->
+            <div id="auth-buttons" class="hidden md:flex items-center space-x-4">
+                <a href="login.html" class="auth-btn px-4 py-2 text-violet-600 border border-violet-600 rounded-lg font-medium hover:bg-violet-50 transition">Log In</a>
+                <a href="login.html" class="auth-btn px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700 transition">Sign Up</a>
+            </div>
+            
+            <!-- User Menu -->
+            <div id="user-menu-container" class="hidden relative md:block">
+                <div id="user-avatar" class="w-10 h-10 rounded-full bg-slate-300 cursor-pointer flex items-center justify-center text-xl font-bold text-slate-600">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div id="user-dropdown" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 hidden">
+                    <div id="username-display" class="px-4 py-2 text-sm text-slate-500"></div>
+                    <a href="#" class="block px-4 py-2 text-slate-700 hover:bg-slate-100 transition">Profile</a>
+                    <button id="logout-btn" class="w-full text-left px-4 py-2 text-red-500 hover:bg-red-50 transition">Log Out</button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu Button -->
+            <div class="md:hidden">
+                <button id="mobile-menu-btn" class="text-slate-600 text-2xl">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </nav>
+        
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white shadow-lg p-4">
+            <a href="index.html" class="mobile-nav-link block py-2 px-4 text-slate-600 hover:bg-slate-100 rounded">Home</a>
+            <a href="chat.html" class="mobile-nav-link block py-2 px-4 text-slate-600 hover:bg-slate-100 rounded">Chat</a>
+            <a href="instruction.html" class="mobile-nav-link block py-2 px-4 text-slate-600 hover:bg-slate-100 rounded">Instructions</a>
+            <hr class="my-4 border-t border-slate-200">
+            <div id="mobile-auth-buttons">
+                <a href="login.html" class="w-full text-left py-2 px-4 text-violet-600 hover:bg-violet-50 rounded">Log In</a>
+                <a href="login.html" class="w-full text-left py-2 px-4 text-violet-600 hover:bg-violet-50 rounded">Sign Up</a>
+            </div>
+            <div id="mobile-user-menu-container" class="hidden">
+                <button id="mobile-logout-btn" class="w-full text-left py-2 px-4 text-red-500 hover:bg-red-50 rounded">Log Out</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50">
+        <div class="max-w-6xl w-full text-center py-12">
+            <h1 class="text-5xl font-extrabold text-slate-800 mb-4">Learn to Use QADS</h1>
+            <p class="text-xl text-slate-600 mb-16 max-w-2xl mx-auto">
+                Master the key features of our chatbot and get the best data science answers instantly.
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 text-left">
+                <!-- Step 1 -->
+                <div class="step-card bg-white p-6 rounded-3xl shadow-lg border border-slate-200 hover:shadow-xl transition-shadow duration-300">
+                    <div class="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-3xl mb-4">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Enter Your Query</h3>
+                    <p class="text-slate-600">Type your data science question into the chat input bar. Being specific will help you get the most accurate results.</p>
+                </div>
+                <!-- Step 2 -->
+                <div class="step-card bg-white p-6 rounded-3xl shadow-lg border border-slate-200 hover:shadow-xl transition-shadow duration-300">
+                    <div class="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-3xl mb-4">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Get Your Answer</h3>
+                    <p class="text-slate-600">Receive a clear and concise response from the chatbot. Our AI is designed to provide quick and reliable information for all your questions.</p>
+                </div>
+                <!-- Step 3 -->
+                <div class="step-card bg-white p-6 rounded-3xl shadow-lg border border-slate-200 hover:shadow-xl transition-shadow duration-300">
+                    <div class="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-3xl mb-4">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">View Your History</h3>
+                    <p class="text-slate-600">All of your conversations are automatically saved. You can access previous chats from the sidebar at any time to review your past sessions.</p>
+                </div>
+                <!-- Step 4 -->
+                <div class="step-card bg-white p-6 rounded-3xl shadow-lg border border-slate-200 hover:shadow-xl transition-shadow duration-300">
+                    <div class="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-3xl mb-4">
+                        <i class="fa-solid fa-plus-circle"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Start a New Chat</h3>
+                    <p class="text-slate-600">When you're ready to explore a new topic, simply click the "New Chat" button to begin a fresh and focused conversation.</p>
+                </div>
+            </div>
+            
+    </main>
+
+    <footer class="bg-white p-4 text-center text-sm text-slate-500 mt-auto">
+        &copy; 2025 QADS. All Rights Reserved.
+    </footer>
+
+
+</body>
+</html>

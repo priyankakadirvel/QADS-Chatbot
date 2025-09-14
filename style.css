@@ -1,0 +1,86 @@
+/* Base styles */
+body {
+    font-family: 'Inter', sans-serif;
+    @apply bg-slate-50 min-h-screen flex flex-col;
+}
+html {
+    scroll-behavior: smooth;
+}
+
+/* Reusable transitions for interactive elements */
+.nav-link,
+.auth-btn,
+.mobile-nav-link,
+.logout-btn {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Hover effects for navigation and buttons */
+.nav-link:hover,
+.mobile-nav-link:hover {
+    transform: translateY(-2px);
+    @apply text-violet-600;
+}
+.auth-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Card effects */
+.feature-card,
+.step-card {
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    @apply rounded-2xl shadow-lg border border-slate-200;
+}
+.feature-card:hover,
+.step-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Sidebar for the chat page */
+.sidebar {
+    transition: transform 0.3s ease-in-out;
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+    }
+    .sidebar.active {
+        transform: translateX(0);
+    }
+}
+
+/* Code block styling */
+pre {
+    background-color: #f3f4f6; /* bg-slate-100 */
+    border: 1px solid #e5e7eb; /* border-slate-200 */
+    border-radius: 0.5rem; /* rounded-lg */
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: 'Courier New', Courier, monospace;
+    position: relative;
+}
+
+.copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background-color: #e5e7eb; /* bg-slate-200 */
+    color: #475569; /* text-slate-600 */
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+pre:hover .copy-btn {
+    opacity: 1;
+}
+
+.copy-btn:hover {
+    background-color: #d1d5db; /* bg-slate-300 */
+}
