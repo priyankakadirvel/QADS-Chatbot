@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  qads-backend:
+  qads-app:
     build:
       context: .
       dockerfile: Dockerfile
@@ -17,6 +17,7 @@ services:
       - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-us-east-1}
       - SERP_API_KEY=${SERP_API_KEY}
       - PYTHONUNBUFFERED=1
+      - PORT=8000
     volumes:
       - ./backend/books_pdfs:/app/backend/books_pdfs
       - ./backend/data:/app/backend/data
