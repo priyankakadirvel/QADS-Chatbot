@@ -40,9 +40,6 @@ env/
 *~
 .DS_Store
 
-# Large PDF files (50+ textbooks)
-backend/books_pdfs/*.pdf
-
 # Sensitive API keys only
 backend/.env
 
@@ -69,6 +66,3 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Git LFS (if using)
-*.pdf
