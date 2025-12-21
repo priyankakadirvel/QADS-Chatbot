@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QADS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <a href="index.html" class="text-2xl font-bold text-violet-600">QADS</a>
+
+            <!-- Desktop Navigation -->
+            <div class="hidden md:flex items-center space-x-6">
+                <a href="index.html" class="nav-link text-slate-600 hover:text-violet-600 transition">Home</a>
+                <a href="chat.html" class="nav-link text-slate-600 hover:text-violet-600 transition">Chat</a>
+                <a href="instruction.html" class="nav-link text-slate-600 hover:text-violet-600 transition">Instructions</a>
+            </div>
+
+            <!-- Auth Buttons -->
+            <div id="auth-buttons" class="hidden md:flex items-center space-x-4">
+                <a href="login.html" class="auth-btn px-4 py-2 text-violet-600 border border-violet-600 rounded-lg font-medium hover:bg-violet-50 transition">Log In</a>
+                <a href="login.html" class="auth-btn px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700 transition">Sign Up</a>
+            </div>
+            
+            <!-- User Menu -->
+            <div id="user-menu-container" class="hidden relative md:block">
+                <div id="user-avatar" class="w-10 h-10 rounded-full bg-slate-300 cursor-pointer flex items-center justify-center text-xl font-bold text-slate-600">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div id="user-dropdown" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 hidden">
+                    <div id="username-display" class="px-4 py-2 text-sm text-slate-500"></div>
+                    <a href="#" class="block px-4 py-2 text-slate-700 hover:bg-slate-100 transition">Profile</a>
+                    <button id="logout-btn" class="w-full text-left px-4 py-2 text-red-500 hover:bg-red-50 transition">Log Out</button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu Button -->
+            <div class="md:hidden">
+                <button id="mobile-menu-btn" class="text-slate-600 text-2xl">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white shadow-lg p-4">
+            <a href="index.html" class="mobile-nav-link block py-2 px-4 text-slate-600 hover:bg-slate-100 rounded">Home</a>
+            <a href="chat.html" class="mobile-nav-link block py-2 px-4 text-slate-600 hover:bg-slate-100 rounded">Chat</a>
+            <a href="instruction.html" class="mobile-nav-link block py-2 px-4 text-slate-600 hover:bg-slate-100 rounded">Instructions</a>
+            <hr class="my-4 border-t border-slate-200">
+            <div id="mobile-auth-buttons">
+                <a href="login.html" class="w-full text-left py-2 px-4 text-violet-600 hover:bg-violet-50 rounded">Log In</a>
+                <a href="login.html" class="w-full text-left py-2 px-4 text-violet-600 hover:bg-violet-50 rounded">Sign Up</a>
+            </div>
+            <div id="mobile-user-menu-container" class="hidden">
+                <button id="mobile-logout-btn" class="w-full text-left py-2 px-4 text-red-500 hover:bg-red-50 rounded">Log Out</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        <!-- Sidebar -->
+        <div id="sidebar" class="bg-white border-r border-slate-200 md:w-80 w-full flex-shrink-0 flex flex-col p-4 md:static absolute inset-y-0 left-0 z-30 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-slate-800">Chat History</h2>
+                <button id="close-sidebar-btn" class="md:hidden text-slate-500 hover:text-slate-700 text-2xl">&times;</button>
+            </div>
+            <div class="flex gap-2 mb-4">
+                <button id="new-chat-btn" class="w-full bg-violet-600 text-white p-3 rounded-lg font-semibold hover:bg-violet-700 transition">
+                    <i class="fa-solid fa-plus mr-2"></i>New Chat
+                </button>
+            </div>
+            <div id="chat-history-list" class="flex-1 overflow-y-auto space-y-2"></div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="flex-1 flex flex-col p-4 md:p-8 bg-white md:bg-slate-50">
+            <!-- Welcome Bar -->
+            <div id="welcome-bar" class="p-4 mb-4 bg-violet-50 rounded-lg border border-violet-200 text-center">
+                <h2 class="text-xl font-semibold text-slate-800">Welcome, <span id="welcome-username" class="text-violet-600">User</span>!</h2>
+                <p class="text-slate-500">Ask me anything about data science. You can start a new chat or continue a previous one.</p>
+                <p class="text-xs text-slate-400 mt-2">Disclaimer: My knowledge is focused on the provided data science materials. I may not be able to answer questions outside of this domain.</p>
+            </div>
+            <div id="chat-messages" class="flex-1 overflow-y-auto mb-4 p-4 md:p-8 rounded-xl bg-white shadow-sm flex flex-col space-y-6"></div>
+            <form id="chat-input-form" class="flex items-center space-x-4 p-2 bg-white rounded-xl shadow-md border border-slate-200">
+                <textarea id="chat-input" class="flex-1 resize-none p-2 rounded-lg bg-transparent focus:outline-none placeholder-slate-400 text-slate-700" rows="1" placeholder="Ask a data science question..." required></textarea>
+                <button type="submit" class="bg-violet-600 text-white p-3 rounded-lg hover:bg-violet-700 transition">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white p-4 text-center text-sm text-slate-500 mt-auto">
+        &copy; 2025 QADS. All Rights Reserved.
+    </footer>
+
+<!-- Markdown rendering and sanitization -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
+<script type="module" src="js/app.js"></script>
+<script type="module" src="js/chat.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        mobileMenuBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+    });
+</script>
+
+</body>
+</html>

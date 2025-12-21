@@ -1,0 +1,16 @@
+cd q_backend
+
+
+pip install -r requirements.txt
+
+
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+
+cd q_frontend
+
+python -m http.server 8000
+
+http://localhost:8000/login.html
+
+
+https://github.com/priyankakadirvel/QADS-Chatbot.git
