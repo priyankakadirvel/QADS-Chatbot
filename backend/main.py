@@ -1,5 +1,6 @@
 # main.py
 import os
+import sys
 import json
 import requests
 from datetime import datetime
@@ -8,6 +9,9 @@ from fastapi import FastAPI, HTTPException, Query, Path
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+
+# Add backend directory to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Local imports
 from config import config
@@ -48,374 +52,264 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Vector DB
-index = None
+# Preload PDFs into vector store on startup
+pdf_paths = config.get_all_pdf_paths(BOOKS_FOLDER_PATH)
+print(f"\n{'='*60}")
+print(f"QADS Chatbot initialized!")
+print(f"Total PDFs available: {len(pdf_paths)}")
+print(f"{'='*60}\n")
 
-
-@app.on_event("startup")
-async def startup_event():
-    """
-    Load PDFs only if not already ingested.
-    """
-    global index
-    print("Starting QADS server...")
+if pdf_paths:
     try:
-        cohere_client, pinecone_client = get_clients()
-        chunks = load_and_chunk_pdfs(BOOKS_FOLDER_PATH)
-        index = setup_vector_store(chunks, cohere_client, pinecone_client)
-        print("Ingestion complete. Vector DB ready.")
+        print(f"\n[LOG] Ingesting {len(pdf_paths)} PDFs into Pinecone...")
+        embeddings_client = get_clients()
+        setup_vector_store(embeddings_client, pdf_paths, INGEST_LOG)
+        print("[LOG] PDFs ingested successfully!")
     except Exception as e:
-        print(f"[Startup Error]: {e}")
+        print(f"[WARNING] Could not ingest PDFs: {e}")
+else:
+    print("[WARNING] No PDF files found in books_pdfs folder")
 
 
-# ------------------ Utility functions ------------------
-def load_json(path: str):
-    return json.load(open(path)) if os.path.exists(path) else {}
+# ==================== API ENDPOINTS ====================
 
-
-def save_json(path: str, data):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=4)
-
-
-def load_users():
-    return load_json(USERS_FILE)
-
-
-def save_users(users: dict):
-    save_json(USERS_FILE, users)
-
-
-# Legacy single-history helpers (for migration only)
-def get_user_legacy_history_path(username: str) -> str:
-    return LEGACY_HISTORY_FILE_TMPL.format(username=username)
-
-
-def load_legacy_history(username: str):
-    p = get_user_legacy_history_path(username)
-    return json.load(open(p)) if os.path.exists(p) else []
-
-
-# Threads helpers
-
-def get_user_threads_path(username: str) -> str:
-    return THREADS_FILE_TMPL.format(username=username)
-
-
-def load_threads(username: str):
-    p = get_user_threads_path(username)
-    return json.load(open(p)) if os.path.exists(p) else []
-
-
-def save_threads(username: str, threads: list):
-    p = get_user_threads_path(username)
-    save_json(p, threads)
-
-
-def migrate_history_to_threads(username: str) -> list:
-    """Migrate legacy flat history into a single thread if threads are empty and legacy exists."""
-    threads = load_threads(username)
-    if threads:
-        return threads
-    legacy = load_legacy_history(username)
-    if not legacy:
-        return []
-    # Build a single thread from legacy
-    # Legacy entries: {role: 'user'|'assistant', content: str, ts: iso}
-    first_user = next((m for m in legacy if m.get("role") == "user" and m.get("content")), None)
-    title = (first_user.get("content", "New chat")[:60] + ("…" if len(first_user.get("content", "")) > 60 else "")) if first_user else "New chat"
-    now = datetime.utcnow().isoformat() + "Z"
-    thread = {
-        "id": f"t_{int(datetime.utcnow().timestamp())}",
-        "title": title or "New chat",
-        "createdAt": legacy[0].get("ts", now) if legacy else now,
-        "updatedAt": legacy[-1].get("ts", now) if legacy else now,
-        "messages": legacy,
+@app.get("/")
+async def root():
+    """Root endpoint - returns API info"""
+    return {
+        "message": "QADS Chatbot API",
+        "version": "2.0",
+        "endpoints": {
+            "chat": "/chat",
+            "register": "/register",
+            "login": "/login"
+        }
     }
-    save_threads(username, [thread])
-    return [thread]
 
 
-# ------------------ Pydantic models ------------------
-class UserAuth(BaseModel):
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "ok"}
+
+
+# ==================== AUTHENTICATION ====================
+
+class User(BaseModel):
+    """User registration/login schema"""
     username: str
     password: str
 
 
-class ChatRequest(BaseModel):
-    username: str
-    prompt: str
-    thread_id: Optional[str] = None
-    session_id: Optional[str] = None
-
-
-class CreateThreadRequest(BaseModel):
-    username: str
-    title: Optional[str] = None
-
-
-class RenameThreadRequest(BaseModel):
-    username: str
-    title: str
-
-
-class SyncThreadRequest(BaseModel):
-    username: str
-    session_id: Optional[str] = None
-    messages: list
-
-
-# ------------------ Auth endpoints ------------------
-@app.post("/api/signup")
-async def signup(user: UserAuth):
-    users = load_users()
-    if user.username in users:
-        raise HTTPException(status_code=400, detail="User already exists")
-    users[user.username] = {"password": user.password}
-    save_users(users)
-    return {"ok": True, "message": "Signup successful"}
-
-
-@app.post("/api/login")
-async def login(user: UserAuth):
-    users = load_users()
-    if user.username not in users or users[user.username]["password"] != user.password:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    return {"ok": True, "message": "Login successful"}
-
-
-# ------------------ Threads endpoints ------------------
-@app.get("/api/threads")
-async def list_threads(username: str = Query(...)):
-    threads = migrate_history_to_threads(username) or []
-    # Minimal info + preview
-    items = []
-    for t in threads:
-        last_msg = t.get("messages", [])[-1] if t.get("messages") else None
-        preview_src = next((m for m in reversed(t.get("messages", [])) if m.get("content")), None)
-        preview = (preview_src.get("content", "")[:60] + ("…" if preview_src and len(preview_src.get("content", "")) > 60 else "")) if preview_src else ""
-        items.append({
-            "id": t.get("id"),
-            "title": t.get("title", "New chat"),
-            "createdAt": t.get("createdAt"),
-            "updatedAt": t.get("updatedAt"),
-            "lastTs": (last_msg or {}).get("ts", t.get("updatedAt")),
-            "preview": preview,
-        })
-    # Sort most recent first
-    items.sort(key=lambda x: x.get("updatedAt") or "", reverse=True)
-    return {"ok": True, "threads": items}
-
-
-@app.post("/api/threads")
-async def create_thread(req: CreateThreadRequest):
-    threads = load_threads(req.username)
-    now = datetime.utcnow().isoformat() + "Z"
-    new_thread = {
-        "id": f"t_{int(datetime.utcnow().timestamp()*1000)}",
-        "title": (req.title or "New chat").strip() or "New chat",
-        "createdAt": now,
-        "updatedAt": now,
-        "messages": []
-    }
-    threads.append(new_thread)
-    save_threads(req.username, threads)
-    return {"ok": True, "thread": new_thread}
-
-
-@app.get("/api/threads/{thread_id}")
-async def get_thread(thread_id: str = Path(...), username: str = Query(...)):
-    threads = load_threads(username)
-    t = next((x for x in threads if x.get("id") == thread_id), None)
-    if not t:
-        raise HTTPException(status_code=404, detail="Thread not found")
-    return {"ok": True, "thread": t}
-
-
-@app.patch("/api/threads/{thread_id}")
-async def rename_thread(thread_id: str = Path(...), username: str = Query(...), req: RenameThreadRequest = None):
-    if not req or not req.title.strip():
-        raise HTTPException(status_code=400, detail="Title is required")
-    threads = load_threads(username)
-    found = False
-    for t in threads:
-        if t.get("id") == thread_id:
-            t["title"] = req.title.strip()
-            t["updatedAt"] = datetime.utcnow().isoformat() + "Z"
-            found = True
-            break
-    if not found:
-        raise HTTPException(status_code=404, detail="Thread not found")
-    save_threads(username, threads)
-    return {"ok": True}
-
-
-@app.delete("/api/threads/{thread_id}")
-async def delete_thread(thread_id: str = Path(...), username: str = Query(...)):
-    threads = load_threads(username)
-    new_threads = [t for t in threads if t.get("id") != thread_id]
-    if len(new_threads) == len(threads):
-        raise HTTPException(status_code=404, detail="Thread not found")
-    save_threads(username, new_threads)
-    return {"ok": True}
-
-
-@app.post("/api/threads/{thread_id}/sync")
-async def sync_thread(thread_id: str = Path(...), username: str = Query(...), req: SyncThreadRequest = None):
-    """Merge client messages into server thread.
-    - Server remains source of truth
-    - Deduplicate by (role, content, ts)
-    """
-    if not req or not isinstance(req.messages, list):
-        raise HTTPException(status_code=400, detail="messages list required")
-
-    threads = load_threads(username)
-    thread = next((t for t in threads if t.get("id") == thread_id), None)
-    if not thread:
-        raise HTTPException(status_code=404, detail="Thread not found")
-
-    server_msgs = thread.get("messages", [])
-
-    # Normalize incoming messages: frontend uses 'bot' vs 'user'
-    def to_server_msg(m):
-        role = m.get("role")
-        if role == "bot":
-            role = "assistant"
-        elif role == "assistant":
-            role = "assistant"
-        else:
-            role = "user"
-        return {
-            "role": role,
-            "content": m.get("text") if m.get("text") is not None else m.get("content"),
-            "ts": m.get("ts"),
-        }
-
-    client_msgs = [to_server_msg(m) for m in req.messages if (m.get("text") or m.get("content")) and m.get("ts")]
-
-    def key(m):
-        return (m.get("role"), m.get("content"), m.get("ts"))
-
-    server_set = {key(m) for m in server_msgs}
-
-    # Append only client messages that are not already in server
-    new_msgs = [m for m in client_msgs if key(m) not in server_set]
-    if new_msgs:
-        # Merge and sort by timestamp
-        merged = server_msgs + new_msgs
-        merged.sort(key=lambda x: x.get("ts") or "")
-        thread["messages"] = merged
-        # Update updatedAt as max ts
-        max_ts = max((m.get("ts") or "" for m in merged), default=datetime.utcnow().isoformat() + "Z")
-        thread["updatedAt"] = max_ts
-        save_threads(username, threads)
-
-    return {"ok": True, "thread": thread}
-
-
-# ------------------ Legacy history endpoints (kept for compatibility) ------------------
-@app.get("/api/history")
-async def get_history(username: str = Query(...)):
-    threads = migrate_history_to_threads(username)
-    # Return flat messages of the most recent thread for compatibility
-    if not threads:
-        return {"ok": True, "messages": []}
-    threads.sort(key=lambda t: t.get("updatedAt") or "", reverse=True)
-    return {"ok": True, "messages": threads[0].get("messages", [])}
-
-
-@app.delete("/api/history")
-async def clear_history(username: str = Query(...)):
-    # Clear all threads
-    save_threads(username, [])
-    return {"ok": True, "message": "History cleared"}
-
-
-# ------------------ Web search helper ------------------
-def search_serpapi(query: str) -> str:
-    if not SERP_API_KEY:
-        return "Web search unavailable (SERP_API_KEY not configured)."
-    params = {"q": query, "api_key": SERP_API_KEY, "engine": "google", "num": 3}
-    try:
-        resp = requests.get("https://serpapi.com/search", params=params)
-        if resp.status_code != 200:
-            return "Web search failed."
-        data = resp.json()
-        snippets = []
-        for res in data.get("organic_results", []):
-            title = res.get("title", "")
-            link = res.get("link", "")
-            snippet = res.get("snippet", "")
-            snippets.append(f"{title}\n{snippet}\n{link}")
-        return "\n\n".join(snippets) if snippets else "No relevant web results found."
-    except Exception as e:
-        return f"SerpAPI request error: {e}"
-
-
-# ------------------ Chat endpoint ------------------
-@app.post("/api/chat")
-async def chat(req: ChatRequest):
-    global index
-    if not req.prompt.strip():
-        raise HTTPException(status_code=400, detail="Prompt is required")
-    if index is None:
-        raise HTTPException(status_code=503, detail="Vector store not ready")
-
-    cohere_client, _ = get_clients()
-    groq_client = get_groq_client()
-
-    # Load threads and resolve thread
-    threads = load_threads(req.username)
-
-    # Create a new thread if none provided
-    # Auto-title threads from the first user message (ChatGPT-like)
-    def _title_from_prompt(text: str) -> str:
-        t = (text or "").strip()
-        if not t:
-            return "New chat"
-        return (t[:60] + ("…" if len(t) > 60 else ""))
-
-    if not req.thread_id:
-        now = datetime.utcnow().isoformat() + "Z"
-        new_thread = {
-            "id": f"t_{int(datetime.utcnow().timestamp()*1000)}",
-            "title": _title_from_prompt(req.prompt),
-            "createdAt": now,
-            "updatedAt": now,
-            "messages": []
-        }
-        threads.append(new_thread)
-        save_threads(req.username, threads)
-        thread = new_thread
+@app.post("/register")
+async def register(user: User):
+    """Register a new user"""
+    if not user.username or not user.password:
+        raise HTTPException(status_code=400, detail="Username and password required")
+    
+    # Load existing users
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r") as f:
+            users = json.load(f)
     else:
-        thread = next((t for t in threads if t.get("id") == req.thread_id), None)
-        if not thread:
-            raise HTTPException(status_code=404, detail="Thread not found")
+        users = {}
+    
+    # Check if user exists
+    if user.username in users:
+        raise HTTPException(status_code=409, detail="User already exists")
+    
+    # Hash password
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    hashed_password = pwd_context.hash(user.password)
+    
+    # Save user
+    users[user.username] = {"password": hashed_password, "created_at": str(datetime.now())}
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f, indent=4)
+    
+    return {"message": "User registered successfully", "username": user.username}
 
-    # Build LLM history from the thread
-    user_history = thread.get("messages", [])
-    llm_history = [{"role": ("assistant" if m.get("role") == "assistant" else "user"), "content": m.get("content")} for m in user_history]
-    llm_history.append({"role": "user", "content": req.prompt})
 
-    # Try vector DB context
-    context = retrieve_context(req.prompt, cohere_client, index)
-    context_source = "vector_db"
-    if not context:
-        context_source = "serpapi"
-        print("No vector DB context found, using SerpAPI...")
-        context = search_serpapi(req.prompt)
+@app.post("/login")
+async def login(user: User):
+    """Authenticate user"""
+    if not os.path.exists(USERS_FILE):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    with open(USERS_FILE, "r") as f:
+        users = json.load(f)
+    
+    if user.username not in users:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    stored_hash = users[user.username]["password"]
+    
+    if not pwd_context.verify(user.password, stored_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    return {
+        "message": "Login successful",
+        "username": user.username,
+        "token": user.username  # Simplified token
+    }
 
-    # Generate response (streaming collected to a string)
-    response_text = "".join([chunk or "" for chunk in generate_llm_response(llm_history, context, groq_client)])
 
-    # Save messages to the thread (and ensure title is set if this was the first message)
-    now = datetime.utcnow().isoformat() + "Z"
-    was_empty = len(thread.get("messages", [])) == 0
-    thread.setdefault("messages", []).append({"role": "user", "content": req.prompt, "ts": now})
-    thread["messages"].append({"role": "assistant", "content": response_text, "ts": now})
-    if was_empty and (not thread.get("title") or thread.get("title") == "New chat"):
-        thread["title"] = _title_from_prompt(req.prompt)
-    thread["updatedAt"] = now
-    save_threads(req.username, threads)
+# ==================== CHAT ENDPOINTS ====================
 
-    return {"ok": True, "response": response_text, "context_source": context_source, "ts": now, "thread_id": thread.get("id")}
+class ChatMessage(BaseModel):
+    """Chat message schema"""
+    username: str
+    query: str
+    thread_id: Optional[str] = None
+
+
+@app.post("/chat")
+async def chat_endpoint(message: ChatMessage):
+    """Chat endpoint - handles Q&A with context retrieval"""
+    try:
+        # Validate user exists
+        if not os.path.exists(USERS_FILE):
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        with open(USERS_FILE, "r") as f:
+            users = json.load(f)
+        
+        if message.username not in users:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        # Get context from vector store
+        embeddings_client = get_clients()
+        context = retrieve_context(embeddings_client, message.query, index_name=config.PINECONE_INDEX_NAME)
+        
+        # If no context from PDFs, use SerpAPI for web search
+        if not context or context.strip() == "":
+            print(f"[LOG] No context found in PDFs for query: {message.query}")
+            print("[LOG] Attempting web search via SerpAPI...")
+            try:
+                from google_search_results import GoogleSearch
+                params = {"q": message.query, "api_key": SERP_API_KEY}
+                search = GoogleSearch(params)
+                results = search.get_dict()
+                if "organic_results" in results:
+                    context = " ".join([result.get("snippet", "") for result in results["organic_results"][:3]])
+                    print(f"[LOG] Found web context: {context[:100]}...")
+                else:
+                    context = "No information found"
+            except Exception as e:
+                print(f"[LOG] Web search failed: {e}")
+                context = "No information found"
+        
+        # Generate response using LLM
+        groq_client = get_groq_client()
+        response = generate_llm_response(groq_client, message.query, context)
+        
+        # Save chat to history
+        threads_file = THREADS_FILE_TMPL.format(username=message.username)
+        thread_id = message.thread_id or f"thread_{int(datetime.now().timestamp())}"
+        
+        if os.path.exists(threads_file):
+            with open(threads_file, "r") as f:
+                threads = json.load(f)
+        else:
+            threads = {}
+        
+        if thread_id not in threads:
+            threads[thread_id] = []
+        
+        threads[thread_id].append({
+            "timestamp": str(datetime.now()),
+            "query": message.query,
+            "response": response,
+            "context_used": context[:200]  # Store first 200 chars of context
+        })
+        
+        with open(threads_file, "w") as f:
+            json.dump(threads, f, indent=4)
+        
+        return {
+            "response": response,
+            "context_used": context[:200],
+            "thread_id": thread_id,
+            "timestamp": str(datetime.now())
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+
+
+@app.get("/history/{username}")
+async def get_history(username: str, thread_id: Optional[str] = None):
+    """Retrieve chat history for a user"""
+    threads_file = THREADS_FILE_TMPL.format(username=username)
+    
+    if not os.path.exists(threads_file):
+        return {"threads": {}}
+    
+    with open(threads_file, "r") as f:
+        threads = json.load(f)
+    
+    if thread_id:
+        return {"thread_id": thread_id, "messages": threads.get(thread_id, [])}
+    
+    return {"threads": threads}
+
+
+@app.post("/chat/thread/{username}")
+async def create_thread(username: str):
+    """Create a new chat thread"""
+    threads_file = THREADS_FILE_TMPL.format(username=username)
+    
+    if os.path.exists(threads_file):
+        with open(threads_file, "r") as f:
+            threads = json.load(f)
+    else:
+        threads = {}
+    
+    thread_id = f"thread_{int(datetime.now().timestamp())}"
+    threads[thread_id] = []
+    
+    with open(threads_file, "w") as f:
+        json.dump(threads, f, indent=4)
+    
+    return {"thread_id": thread_id, "created_at": str(datetime.now())}
+
+
+@app.delete("/chat/thread/{username}/{thread_id}")
+async def delete_thread(username: str, thread_id: str):
+    """Delete a chat thread"""
+    threads_file = THREADS_FILE_TMPL.format(username=username)
+    
+    if not os.path.exists(threads_file):
+        raise HTTPException(status_code=404, detail="No threads found")
+    
+    with open(threads_file, "r") as f:
+        threads = json.load(f)
+    
+    if thread_id not in threads:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    
+    del threads[thread_id]
+    
+    with open(threads_file, "w") as f:
+        json.dump(threads, f, indent=4)
+    
+    return {"message": "Thread deleted", "thread_id": thread_id}
+
+
+@app.get("/pdfs")
+async def get_pdf_list():
+    """Get list of available PDFs"""
+    pdf_paths = config.get_all_pdf_paths(BOOKS_FOLDER_PATH)
+    pdf_names = [os.path.basename(path) for path in pdf_paths]
+    return {"count": len(pdf_names), "pdfs": pdf_names}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
