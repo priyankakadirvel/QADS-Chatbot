@@ -10,10 +10,8 @@ google-search-results
 requests
 beautifulsoup4
 fastapi
-uvicorn
-gunicorn
+uvicorn[standard]
 transformers
-requests
 pydantic
 python-multipart
 passlib[bcrypt]
