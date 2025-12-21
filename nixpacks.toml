@@ -1,8 +1,0 @@
-[providers]
-nixpkgs.packages = ["python39"]
-
-[phases.install]
-cmds = ["pip install -r requirements.txt"]
-
-[phases.start]
-cmd = "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
