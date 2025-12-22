@@ -34,13 +34,9 @@
 ![Chat Interface](screenshots/chat_interface.png)
 *The main chat interface where users can ask questions and receive grounded answers.*
 
-### Symbolic Data Analysis Explanation
+
 ![Symbolic Data Analysis](screenshots/symbolic_data_analysis.png)
 *Detailed explanation of complex concepts like Symbolic Data Analysis.*
-
-### Source Attribution
-![Source Attribution](screenshots/source_attribution.png)
-*Answers include citations to source documents for verification.*
 
 ### Error Handling
 ![Error Handling](screenshots/error_handling.png)
