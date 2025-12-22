@@ -40,7 +40,7 @@
 
 ### Error Handling
 ![Error Handling](screenshots/error_handling.png)
-*Robust error handling ensures users are informed of issues like network failures.*
+*Robust error handling ensures users are informed about out of domain questions*
 
 ### User Guide
 ![User Guide](screenshots/user_guide.png)
