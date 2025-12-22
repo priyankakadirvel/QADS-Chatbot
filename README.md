@@ -244,7 +244,6 @@ QADS_Chatbot/
 ├── Qads_Running_Steps.txt          # Quick start guide
 ├── allfiles.txt                     # File manifest
 ├── .gitattributes                   # Git configuration
-└── .zencoder/ & .zenflow/          # Workflow automation
 
 ```
 
@@ -430,92 +429,9 @@ DELETE /history/{username}/{thread_id}
 ### Prerequisites
 
 - **Python 3.9+**
-- **Node.js 16+** (optional, for frontend tooling)
 - **API Keys**: Cohere, Groq, Pinecone, SerpAPI
 
-### Step 1: Clone Repository
 
-```bash
-git clone https://github.com/yourusername/QADS_Chatbot.git
-cd QADS_Chatbot
-```
-
-### Step 2: Backend Setup
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### Step 3: Environment Configuration
-
-Create `.env` file in `backend/` directory:
-
-```bash
-# API Keys
-COHERE_API_KEY=your_cohere_api_key
-GROQ_API_KEY=your_groq_api_key
-PINECONE_API_KEY=your_pinecone_api_key
-SERP_API_KEY=your_serpapi_key
-
-# Pinecone
-PINECONE_INDEX_NAME=qads
-PINECONE_ENVIRONMENT=us-east-1
-
-# Optional
-LOG_LEVEL=INFO
-```
-
-### Step 4: Add Knowledge Base
-
-Place PDF files in `backend/books_pdfs/` directory:
-
-```bash
-cp your_textbooks/*.pdf backend/books_pdfs/
-```
-
-### Step 5: Run Backend Server
-
-```bash
-cd backend
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Expected Output**:
-```
-INFO:     Uvicorn running on http://0.0.0.0:8000
-INFO:     Starting QADS server...
-INFO:     Ingestion complete. Vector DB ready.
-```
-
-### Step 6: Frontend Setup
-
-Open `frontend/index.html` in a browser or serve via HTTP server:
-
-```bash
-cd frontend
-python -m http.server 8080
-# Visit http://localhost:8080
-```
-
----
-
-## 🧪 Testing Strategy
-
-### Unit Testing
-
-**Components Tested**:
-- PDF parsing and chunking (`utils/pdf_processor.py`)
-- Embedding generation (`models/embeddings.py`)
-- Domain validation (`models/llm.py::is_data_science_query`)
-- Authentication (bcrypt hashing)
-- History serialization
 
 ### Integration Testing
 
@@ -534,20 +450,6 @@ python -m http.server 8080
 4. Chat history persists across sessions
 5. Web search provides coverage for emerging topics
 
-### Running Tests
-
-```bash
-cd backend
-
-# Unit tests
-pytest tests/unit/
-
-# Integration tests
-pytest tests/integration/
-
-# Coverage report
-pytest --cov=. tests/
-```
 
 ---
 
@@ -586,129 +488,6 @@ pytest --cov=. tests/
 - ✅ Input validation (query, username, password)
 - ✅ Local data storage (no cloud persistence of chat history by default)
 
-### Recommendations
-
-- [ ] Implement JWT tokens for stateless authentication
-- [ ] Add rate limiting to prevent API abuse
-- [ ] Encrypt sensitive data in user.json
-- [ ] Implement audit logging for security events
-- [ ] Regular security updates for dependencies
-
----
-
-## 📊 Current Limitations
-
-1. **Knowledge Base Size**: Limited to locally stored PDFs (scalability through Pinecone)
-2. **Language Support**: English only (can be extended with multilingual embeddings)
-3. **Real-time Updates**: Knowledge base requires manual PDF ingestion
-4. **No Database**: Uses JSON files (suitable for small-to-medium user base)
-5. **Single-User Data**: Multi-tenancy not fully optimized
-6. **No Advanced Analytics**: Basic usage tracking only
-7. **Deployment**: Requires manual server setup (no containerization yet)
-8. **Response Time**: Depends on Groq/Cohere API latency (typically 1-3 seconds)
-
----
-
-## 🚀 Future Enhancements
-
-### Phase 2: Production Hardening
-
-- [ ] **Docker & Kubernetes**: Containerized deployment
-- [ ] **Database Migration**: Move from JSON to PostgreSQL
-- [ ] **Caching Layer**: Redis for faster response times
-- [ ] **API Rate Limiting**: Prevent abuse
-- [ ] **Advanced Monitoring**: Application performance monitoring (APM)
-
-### Phase 3: Feature Expansion
-
-- [ ] **Multilingual Support**: Chinese, Spanish, French, etc.
-- [ ] **Fine-tuned LLM**: Custom model for data science domain
-- [ ] **Real-time Web Indexing**: Auto-crawl and index new data science blogs
-- [ ] **Collaborative Learning**: Share questions and answers between users
-- [ ] **Interactive Notebooks**: Jupyter-like coding environment
-
-### Phase 4: Intelligence Enhancement
-
-- [ ] **Feedback Loop**: Learn from user feedback to improve responses
-- [ ] **Query Intent Classification**: Route queries to specialized models
-- [ ] **Fact Verification**: Cross-reference sources for accuracy
-- [ ] **Personalized Responses**: Adapt to user skill level
-- [ ] **Research Mode**: Deep dive into specific topics with curated sources
-
-### Phase 5: Enterprise Features
-
-- [ ] **Institutional License**: Multi-user team plans
-- [ ] **Custom Knowledge Base**: Organizations can add proprietary data
-- [ ] **Analytics Dashboard**: Usage insights and learning metrics
-- [ ] **API Gateway**: Third-party integration
-- [ ] **SSO Integration**: Enterprise authentication (OAuth, SAML)
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! To contribute:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit changes: `git commit -am 'Add new feature'`
-4. Push to branch: `git push origin feature/your-feature`
-5. Submit a pull request
-
-**Contribution Areas**:
-- Bug fixes and improvements
-- New data science resources (PDFs)
-- Frontend UI/UX enhancements
-- Documentation improvements
-- Test coverage expansion
-
----
-
-## 📝 License
-
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 👨‍💻 Authors
-
-**QADS Development Team**
-- **Project**: Question Answering Data Science Assistant
-- **Year**: 2024-2025
-- **Institution**: Data Science Education Initiative
-- **Contact**: qads.chatbot@example.com
-
----
-
-## 🙏 Acknowledgments
-
-- **Data Science Community**: For 50+ contributed textbooks and resources
-- **Open Source Projects**: FastAPI, LangChain, Pinecone, Groq, Cohere
-- **Beta Testers**: Students who provided feedback during development
-- **Mentors**: Academic advisors who guided the project vision
-
----
-
-## 📚 References
-
-### Key Papers & Resources
-
-1. Lewis et al. (2020) - [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401)
-2. Karpukhin et al. (2020) - [Dense Passage Retrieval for Open-Domain Question Answering](https://arxiv.org/abs/2004.04906)
-3. [FastAPI Documentation](https://fastapi.tiangolo.com/)
-4. [LangChain Documentation](https://docs.langchain.com/)
-5. [Pinecone Vector Database Guide](https://docs.pinecone.io/)
-
----
-
-## 📞 Support
-
-For issues, questions, or feature requests:
-- **GitHub Issues**: [Open an issue](https://github.com/yourusername/QADS_Chatbot/issues)
-- **Email**: qads.chatbot@example.com
-- **Documentation**: See `Qads_Running_Steps.txt` for quick setup
-
----
 
 ## 🎯 Vision
 
@@ -716,8 +495,3 @@ For issues, questions, or feature requests:
 
 The future of learning is **AI-assisted, source-aware, and scalable**.
 
----
-
-**Last Updated**: December 2024  
-**Version**: 2.0  
-**Status**: Active Development
