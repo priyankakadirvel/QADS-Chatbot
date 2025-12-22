@@ -37,7 +37,7 @@ def get_all_pdf_paths(folder_path):
 # Paths & Index Name (resolve relative to q_backend)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # .../q_backend
 BOOKS_FOLDER_PATH = os.path.join(BASE_DIR, "books_pdfs")
-PINECONE_INDEX_NAME = "qads"
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "qads")
 
 #  Preload all PDFs (optional)
 try:

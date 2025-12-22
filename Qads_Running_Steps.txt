@@ -1,16 +1,18 @@
-cd q_backend
+# QADS Chatbot - Running Steps
 
+1. Install Dependencies:
+   pip install -r requirements.txt
 
-pip install -r requirements.txt
+2. Run the Application:
+   python backend/main.py
 
+   OR using uvicorn directly:
+   uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
+3. Access the Application:
+   Open your browser and navigate to:
+   http://localhost:8000
 
-cd q_frontend
+   (The frontend is served automatically by the backend)
 
-python -m http.server 8000
-
-http://localhost:8000/login.html
-
-
-https://github.com/priyankakadirvel/QADS-Chatbot.git
+Note: Ensure your .env file is set up in the backend/ directory with the necessary API keys.
