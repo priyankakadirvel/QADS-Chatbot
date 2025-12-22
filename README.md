@@ -24,6 +24,34 @@
 
 ---
 
+## 📸 Screenshots
+
+### Home Page
+![Home Page](screenshots/home_page.png)
+*The landing page featuring key features and easy navigation.*
+
+### Chat Interface
+![Chat Interface](screenshots/chat_interface.png)
+*The main chat interface where users can ask questions and receive grounded answers.*
+
+### Symbolic Data Analysis Explanation
+![Symbolic Data Analysis](screenshots/symbolic_data_analysis.png)
+*Detailed explanation of complex concepts like Symbolic Data Analysis.*
+
+### Source Attribution
+![Source Attribution](screenshots/source_attribution.png)
+*Answers include citations to source documents for verification.*
+
+### Error Handling
+![Error Handling](screenshots/error_handling.png)
+*Robust error handling ensures users are informed of issues like network failures.*
+
+### User Guide
+![User Guide](screenshots/user_guide.png)
+*Comprehensive user guide to help users get the most out of QADS.*
+
+---
+
 ## 🚀 Project Overview
 
 **QADS** is an intelligent, production-ready **Retrieval-Augmented Generation (RAG)** chatbot designed specifically for Data Science students and professionals. It combines domain-specific knowledge retrieval with intelligent web search fallback to provide accurate, context-grounded answers to data science, machine learning, statistics, and engineering questions.
@@ -535,12 +563,12 @@ pytest --cov=. tests/
 - ✅ **RAG Architecture**: Grounded in authoritative sources, no hallucinations
 - ✅ **Code Solutions**: Python, SQL, R code with explanations
 - ✅ **Web Search Fallback**: Google search via SerpAPI for emerging topics
-- ✅ **User Authentication**: Secure registration and login
-- ✅ **Conversation Threads**: Organize chats by topic
-- ✅ **Chat History**: Persistent conversation storage
-- ✅ **Responsive Design**: Mobile-friendly frontend
+- ✅ **Robust Authentication**: Secure registration and login with session persistence and error handling
+- ✅ **Conversation Threads**: Organize chats by topic with rename/delete capabilities
+- ✅ **Chat History**: Persistent conversation storage with local caching for speed
+- ✅ **Responsive Design**: Mobile-friendly frontend with Tailwind CSS
 - ✅ **Source Attribution**: View source documents for answers
-- ✅ **Production-Ready API**: FastAPI with async/await
+- ✅ **Production-Ready API**: FastAPI with async/await and comprehensive error logging
 
 ### Advanced Features
 

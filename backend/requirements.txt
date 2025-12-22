@@ -16,3 +16,4 @@ requests
 pydantic
 python-multipart
 passlib[bcrypt]
+aiofiles

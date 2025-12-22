@@ -4,6 +4,10 @@ export let userId = null;
 export let username = null;
 export let isAuthReady = false;
 
+const BASE = (window.location.port === '8000' || window.location.protocol === 'https:') 
+    ? '' 
+    : 'http://127.0.0.1:8000';
+
 // Initialize from localStorage if available
 try {
     const savedUser = localStorage.getItem("chatbot_user");
@@ -24,7 +28,7 @@ try {
  */
 export const handleSignup = async (uname, password) => {
   try {
-    const response = await fetch("http://127.0.0.1:8000/api/signup", {
+    const response = await fetch(`${BASE}/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: uname.trim(), password }),
@@ -55,7 +59,7 @@ export const handleSignup = async (uname, password) => {
  */
 export const handleLogin = async (uname, password) => {
   try {
-    const response = await fetch("http://127.0.0.1:8000/api/login", {
+    const response = await fetch(`${BASE}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: uname.trim(), password }),

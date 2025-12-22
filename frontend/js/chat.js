@@ -21,7 +21,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // -------- Config --------
     // If your backend runs on a different port/host, change BASE accordingly.
-    const BASE = 'http://127.0.0.1:8000';
+    // Auto-detect: if served from backend (port 8000 or https), use relative path.
+    // Otherwise (e.g. live server on 5500), use localhost:8000.
+    const BASE = (window.location.port === '8000' || window.location.protocol === 'https:') 
+        ? '' 
+        : 'http://127.0.0.1:8000';
+
+    function getAuthUser() {
+        if (username) return username;
+        try {
+            const u = JSON.parse(localStorage.getItem("chatbot_user") || '{}').username;
+            if (u) return u;
+        } catch {}
+        const w = document.getElementById('welcome-username');
+        if (w && w.textContent) return w.textContent.trim();
+        return null;
+    }
 
     // -------- Session handling --------
     const SESSION_KEY = (u) => `qads_session_id_${u}`;
@@ -101,27 +116,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // -------- API helpers --------
     async function apiListThreads() {
-        const r = await fetch(`${BASE}/api/threads?username=${encodeURIComponent(username)}`);
-        if (!r.ok) throw new Error(`List threads failed: ${r.status}`);
+        const user = getAuthUser();
+        if (!user) throw new Error("User not identified");
+        const r = await fetch(`${BASE}/api/threads?username=${encodeURIComponent(user)}`);
+        if (!r.ok) {
+            const txt = await r.text();
+            console.error("List threads failed", r.status, txt);
+            throw new Error(`List threads failed: ${r.status} ${txt}`);
+        }
         const data = await r.json();
         if (!data.ok) throw new Error('List threads not ok');
         return data.threads || [];
     }
 
     async function apiCreateThread(title) {
+        const user = getAuthUser();
+        if (!user) throw new Error("User not identified");
         const r = await fetch(`${BASE}/api/threads`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, title })
+            body: JSON.stringify({ username: user, title })
         });
-        if (!r.ok) throw new Error(`Create thread failed: ${r.status}`);
+        if (!r.ok) {
+            const txt = await r.text();
+            console.error("Create thread failed", r.status, txt);
+            throw new Error(`Create thread failed: ${r.status} ${txt}`);
+        }
         const data = await r.json();
         if (!data.ok) throw new Error('Create thread not ok');
         return data.thread;
     }
 
     async function apiGetThread(threadId) {
-        const r = await fetch(`${BASE}/api/threads/${encodeURIComponent(threadId)}?username=${encodeURIComponent(username)}`);
+        const user = getAuthUser();
+        if (!user) throw new Error("User not identified");
+        const r = await fetch(`${BASE}/api/threads/${encodeURIComponent(threadId)}?username=${encodeURIComponent(user)}`);
         if (!r.ok) throw new Error(`Get thread failed: ${r.status}`);
         const data = await r.json();
         if (!data.ok) throw new Error('Get thread not ok');
@@ -129,22 +158,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function apiSyncThread(threadId, messages) {
-        const r = await fetch(`${BASE}/api/threads/${encodeURIComponent(threadId)}/sync?username=${encodeURIComponent(username)}`, {
+        const user = getAuthUser();
+        if (!user) throw new Error("User not identified");
+        const r = await fetch(`${BASE}/api/threads/${encodeURIComponent(threadId)}/sync?username=${encodeURIComponent(user)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, session_id: sessionId, messages })
+            body: JSON.stringify({ username: user, session_id: sessionId, messages })
         });
-        if (!r.ok) throw new Error(`Sync failed: ${r.status}`);
+        if (!r.ok) {
+            const txt = await r.text();
+            console.error("Sync failed", r.status, txt);
+            throw new Error(`Sync failed: ${r.status} ${txt}`);
+        }
         const data = await r.json();
         if (!data.ok) throw new Error('Sync not ok');
         return data.thread; // server thread after merge
     }
 
     async function apiRenameThread(threadId, title) {
-        const r = await fetch(`${BASE}/api/threads/${encodeURIComponent(threadId)}?username=${encodeURIComponent(username)}`, {
+        const user = getAuthUser();
+        if (!user) throw new Error("User not identified");
+        const r = await fetch(`${BASE}/api/threads/${encodeURIComponent(threadId)}?username=${encodeURIComponent(user)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, title })
+            body: JSON.stringify({ username: user, title })
         });
         if (!r.ok) throw new Error(`Rename thread failed: ${r.status}`);
         const data = await r.json();
@@ -153,7 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function apiDeleteThread(threadId) {
-        const r = await fetch(`${BASE}/api/threads/${encodeURIComponent(threadId)}?username=${encodeURIComponent(username)}`, {
+        const user = getAuthUser();
+        if (!user) throw new Error("User not identified");
+        const r = await fetch(`${BASE}/api/threads/${encodeURIComponent(threadId)}?username=${encodeURIComponent(user)}`, {
             method: 'DELETE'
         });
         if (!r.ok) throw new Error(`Delete thread failed: ${r.status}`);
@@ -163,12 +202,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function apiChat(threadId, prompt) {
+        const user = getAuthUser();
+        if (!user) throw new Error("User not identified");
         const r = await fetch(`${BASE}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, prompt, thread_id: threadId, session_id: sessionId })
+            body: JSON.stringify({ username: user, query: prompt, thread_id: threadId, session_id: sessionId })
         });
-        if (!r.ok) throw new Error(`Chat failed: ${r.status}`);
+        if (!r.ok) {
+            const txt = await r.text();
+            console.error("Chat failed", r.status, txt);
+            throw new Error(`Chat failed: ${r.status} ${txt}`);
+        }
         const data = await r.json();
         if (!data.ok) throw new Error('Chat not ok');
         return data; // { response, ts, thread_id }
@@ -418,7 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await loadAndRenderThreads();
             } catch (e) {
                 console.error(e);
-                alert('Failed to create new chat');
+                alert('Failed to create new chat: ' + e.message);
                 return;
             }
         }
@@ -495,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatInput.focus();
             } catch (e) {
                 console.error(e);
-                alert('Failed to start new chat');
+                alert('Failed to start new chat: ' + e.message);
             }
         });
     }
