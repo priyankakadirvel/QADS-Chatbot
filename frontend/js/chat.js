@@ -210,6 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({ username: user, query: prompt, thread_id: threadId, session_id: sessionId })
         });
         if (!r.ok) {
+            if (r.status === 401) {
+                alert("Session expired. Please log in again.");
+                window.location.href = 'login.html';
+                return;
+            }
             const txt = await r.text();
             console.error("Chat failed", r.status, txt);
             throw new Error(`Chat failed: ${r.status} ${txt}`);
