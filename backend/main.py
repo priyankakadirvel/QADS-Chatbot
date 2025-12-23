@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Query, Path, Body
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -47,6 +48,12 @@ if not os.path.exists(INGEST_LOG):
 
 # FastAPI setup
 app = FastAPI(title="QADS Chatbot API", version="2.0")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "../frontend")
+
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -125,17 +132,20 @@ def save_threads(username, threads):
 # ==================== API ENDPOINTS ====================
 
 @app.get("/")
-async def root():
-    """Root endpoint - returns API info"""
-    return {
-        "message": "QADS Chatbot API",
-        "version": "2.0",
-        "endpoints": {
-            "chat": "/chat",
-            "register": "/register",
-            "login": "/login"
-        }
-    }
+def serve_index():
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
+@app.get("/chat.html")
+def serve_chat():
+    return FileResponse(os.path.join(FRONTEND_DIR, "chat.html"))
+
+@app.get("/login.html")
+def serve_login():
+    return FileResponse(os.path.join(FRONTEND_DIR, "login.html"))
+
+@app.get("/instruction.html")
+def serve_instruction():
+    return FileResponse(os.path.join(FRONTEND_DIR, "instruction.html"))
 
 
 @app.get("/health")
