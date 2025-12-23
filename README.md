@@ -1,5 +1,7 @@
 # 🎓 QADS - Question Answering Data Science Assistant
 
+[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen?style=for-the-badge&logo=render)](https://qads-chatbot.onrender.com/)
+
 ![QADS Banner](https://img.shields.io/badge/AI-Chatbot-blue?style=flat-square)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104-green?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue?style=flat-square)
