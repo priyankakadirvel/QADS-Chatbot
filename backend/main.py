@@ -2,7 +2,6 @@
 import os
 import sys
 import json
-import requests
 import bcrypt
 import threading
 from datetime import datetime
@@ -26,7 +25,6 @@ from models.llm import get_groq_client, generate_llm_response
 # ------------------ Setup ------------------
 BOOKS_FOLDER_PATH = config.BOOKS_FOLDER_PATH
 load_dotenv()
-SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -41,7 +39,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "../frontend")
 STATIC_DIR = os.path.join(FRONTEND_DIR, "static")
 
-# ------------------ Frontend Routes (NO route shadowing) ------------------
+# ------------------ Frontend Routes (no shadowing) ------------------
 
 @app.get("/")
 def serve_index():
@@ -59,7 +57,6 @@ def serve_login():
 def serve_instruction():
     return FileResponse(os.path.join(FRONTEND_DIR, "instruction.html"))
 
-# Serve static assets safely
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -76,14 +73,14 @@ app.add_middleware(
 
 def background_ingest():
     try:
-        print(f"\n[LOG] Ingesting PDFs from {BOOKS_FOLDER_PATH}...")
+        print(f"[LOG] Ingesting PDFs from {BOOKS_FOLDER_PATH}...")
         chunks = load_and_chunk_pdfs(BOOKS_FOLDER_PATH)
         print(f"[LOG] Generated {len(chunks)} chunks. Setting up vector store...")
         cohere_client, pinecone_client = get_clients()
         setup_vector_store(chunks, cohere_client, pinecone_client)
         print("[LOG] Vector store setup complete!")
     except Exception as e:
-        print(f"[WARNING] Could not setup vector store: {e}")
+        print(f"[WARNING] Vector store setup failed: {e}")
 
 @app.on_event("startup")
 def startup_event():
@@ -189,8 +186,11 @@ async def chat_endpoint(message: ChatMessage):
         print(f"[WARNING] Vector store retrieval failed: {e}")
 
     groq_client = get_groq_client()
-    chat_history = [{"role": "user", "content": message.query}]
-    response = "".join(generate_llm_response(chat_history, context, groq_client))
+    chunks = list(generate_llm_response([{"role": "user", "content": message.query}], context, groq_client))
+    response = "".join(chunks).strip()
+
+    if not response:
+        response = "I'm having trouble generating a response right now. Please try again in a moment."
 
     threads = load_threads(message.username)
     thread_id = message.thread_id or f"thread_{int(datetime.now().timestamp())}"
@@ -233,6 +233,41 @@ async def create_thread_api(payload: ThreadCreate):
     }
     save_threads(payload.username, threads)
     return {"ok": True, "thread": threads[tid]}
+
+@app.post("/api/threads/{thread_id}/sync")
+async def sync_thread(thread_id: str, payload: ThreadSync, username: str = Query(...)):
+    threads = load_threads(username)
+
+    if thread_id not in threads:
+        threads[thread_id] = {
+            "id": thread_id,
+            "title": "Synced Chat",
+            "created_at": str(datetime.now()),
+            "updated_at": str(datetime.now()),
+            "messages": []
+        }
+
+    new_msgs = []
+    for m in payload.messages:
+        role = "assistant" if m.get("role") == "bot" else "user"
+        content = m.get("text")
+        ts = m.get("ts")
+        new_msgs.append({"role": role, "content": content, "ts": ts})
+
+    threads[thread_id]["messages"] = new_msgs
+    threads[thread_id]["updated_at"] = str(datetime.now())
+    save_threads(username, threads)
+
+    return {"ok": True, "thread": threads[thread_id]}
+
+@app.delete("/api/threads/{thread_id}")
+async def delete_thread_api(thread_id: str, username: str = Query(...)):
+    threads = load_threads(username)
+    if thread_id in threads:
+        del threads[thread_id]
+        save_threads(username, threads)
+        return {"ok": True}
+    raise HTTPException(status_code=404, detail="Thread not found")
 
 # ==================== RUN ====================
 
