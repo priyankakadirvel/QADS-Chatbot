@@ -48,6 +48,10 @@ def serve_index():
 def head_index():
     return Response(status_code=200)
 
+@app.get("/index.html")
+def serve_index_alias():
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
 @app.get("/chat.html")
 def serve_chat():
     return FileResponse(os.path.join(FRONTEND_DIR, "chat.html"))
@@ -60,8 +64,7 @@ def serve_login():
 def serve_instruction():
     return FileResponse(os.path.join(FRONTEND_DIR, "instruction.html"))
 
-# 🔥 FIX: mount whole frontend folder to /static
-# So /static/js/app.js -> frontend/js/app.js
+# Serve static files exactly as frontend expects: /static/js/*, /static/css/*
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
@@ -102,10 +105,6 @@ async def health_check():
 class ThreadCreate(BaseModel):
     username: str
     title: Optional[str] = "New Chat"
-
-class ThreadUpdate(BaseModel):
-    username: str
-    title: str
 
 class ThreadSync(BaseModel):
     username: str
@@ -220,6 +219,13 @@ async def chat_endpoint(message: ChatMessage):
 async def list_threads(username: str = Query(...)):
     return {"ok": True, "threads": list(load_threads(username).values())}
 
+@app.get("/api/threads/{thread_id}")
+async def get_thread(thread_id: str, username: str = Query(...)):
+    threads = load_threads(username)
+    if thread_id not in threads:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return {"ok": True, "thread": threads[thread_id]}
+
 @app.post("/api/threads")
 async def create_thread_api(payload: ThreadCreate):
     threads = load_threads(payload.username)
@@ -244,11 +250,9 @@ async def sync_thread(thread_id: str, payload: ThreadSync, username: str = Query
         "updated_at": str(datetime.now()),
         "messages": []
     })
-
     threads[thread_id]["messages"] = payload.messages
     threads[thread_id]["updated_at"] = str(datetime.now())
     save_threads(username, threads)
-
     return {"ok": True, "thread": threads[thread_id]}
 
 @app.delete("/api/threads/{thread_id}")
