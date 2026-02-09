@@ -6,7 +6,7 @@ import bcrypt
 import threading
 from datetime import datetime
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -37,13 +37,16 @@ app = FastAPI(title="QADS Chatbot API", version="2.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "../frontend")
-STATIC_DIR = os.path.join(FRONTEND_DIR, "static")
 
-# ------------------ Frontend Routes (no shadowing) ------------------
+# ------------------ Frontend Routes ------------------
 
 @app.get("/")
 def serve_index():
     return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
+@app.head("/")
+def head_index():
+    return Response(status_code=200)
 
 @app.get("/chat.html")
 def serve_chat():
@@ -57,8 +60,10 @@ def serve_login():
 def serve_instruction():
     return FileResponse(os.path.join(FRONTEND_DIR, "instruction.html"))
 
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# 🔥 FIX: mount whole frontend folder to /static
+# So /static/js/app.js -> frontend/js/app.js
+if os.path.exists(FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 # ------------------ Middleware ------------------
 
@@ -187,22 +192,18 @@ async def chat_endpoint(message: ChatMessage):
 
     groq_client = get_groq_client()
     chunks = list(generate_llm_response([{"role": "user", "content": message.query}], context, groq_client))
-    response = "".join(chunks).strip()
-
-    if not response:
-        response = "I'm having trouble generating a response right now. Please try again in a moment."
+    response = "".join(chunks).strip() or "I'm having trouble generating a response right now. Please try again."
 
     threads = load_threads(message.username)
     thread_id = message.thread_id or f"thread_{int(datetime.now().timestamp())}"
 
-    if thread_id not in threads:
-        threads[thread_id] = {
-            "id": thread_id,
-            "title": message.query[:30],
-            "created_at": str(datetime.now()),
-            "updated_at": str(datetime.now()),
-            "messages": []
-        }
+    threads.setdefault(thread_id, {
+        "id": thread_id,
+        "title": message.query[:30],
+        "created_at": str(datetime.now()),
+        "updated_at": str(datetime.now()),
+        "messages": []
+    })
 
     threads[thread_id]["messages"].extend([
         {"role": "user", "content": message.query, "ts": str(datetime.now())},
@@ -217,8 +218,7 @@ async def chat_endpoint(message: ChatMessage):
 
 @app.get("/api/threads")
 async def list_threads(username: str = Query(...)):
-    threads = load_threads(username)
-    return {"ok": True, "threads": list(threads.values())}
+    return {"ok": True, "threads": list(load_threads(username).values())}
 
 @app.post("/api/threads")
 async def create_thread_api(payload: ThreadCreate):
@@ -237,24 +237,15 @@ async def create_thread_api(payload: ThreadCreate):
 @app.post("/api/threads/{thread_id}/sync")
 async def sync_thread(thread_id: str, payload: ThreadSync, username: str = Query(...)):
     threads = load_threads(username)
+    threads.setdefault(thread_id, {
+        "id": thread_id,
+        "title": "Synced Chat",
+        "created_at": str(datetime.now()),
+        "updated_at": str(datetime.now()),
+        "messages": []
+    })
 
-    if thread_id not in threads:
-        threads[thread_id] = {
-            "id": thread_id,
-            "title": "Synced Chat",
-            "created_at": str(datetime.now()),
-            "updated_at": str(datetime.now()),
-            "messages": []
-        }
-
-    new_msgs = []
-    for m in payload.messages:
-        role = "assistant" if m.get("role") == "bot" else "user"
-        content = m.get("text")
-        ts = m.get("ts")
-        new_msgs.append({"role": role, "content": content, "ts": ts})
-
-    threads[thread_id]["messages"] = new_msgs
+    threads[thread_id]["messages"] = payload.messages
     threads[thread_id]["updated_at"] = str(datetime.now())
     save_threads(username, threads)
 
