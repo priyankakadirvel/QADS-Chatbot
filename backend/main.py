@@ -10,6 +10,7 @@ from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -38,11 +39,31 @@ app = FastAPI(title="QADS Chatbot API", version="2.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "../frontend")
+STATIC_DIR = os.path.join(FRONTEND_DIR, "static")
 
+# ------------------ Frontend Routes (NO route shadowing) ------------------
 
-# ✅ Serve frontend under /app instead of /
-if os.path.exists(FRONTEND_DIR):
-    app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+@app.get("/")
+def serve_index():
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
+@app.get("/chat.html")
+def serve_chat():
+    return FileResponse(os.path.join(FRONTEND_DIR, "chat.html"))
+
+@app.get("/login.html")
+def serve_login():
+    return FileResponse(os.path.join(FRONTEND_DIR, "login.html"))
+
+@app.get("/instruction.html")
+def serve_instruction():
+    return FileResponse(os.path.join(FRONTEND_DIR, "instruction.html"))
+
+# Serve static assets safely
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# ------------------ Middleware ------------------
 
 app.add_middleware(
     CORSMiddleware,
@@ -67,6 +88,8 @@ def background_ingest():
 @app.on_event("startup")
 def startup_event():
     threading.Thread(target=background_ingest, daemon=True).start()
+
+# ------------------ Health ------------------
 
 @app.get("/health")
 async def health_check():
