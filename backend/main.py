@@ -6,10 +6,9 @@ import requests
 import bcrypt
 import threading
 from datetime import datetime
-from typing import Optional
-from fastapi import FastAPI, HTTPException
+from typing import Optional, List
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -28,27 +27,18 @@ BOOKS_FOLDER_PATH = config.BOOKS_FOLDER_PATH
 load_dotenv()
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 
-# File paths
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 HISTORY_DIR = os.path.join(DATA_DIR, "history")
 os.makedirs(HISTORY_DIR, exist_ok=True)
-
 THREADS_FILE_TMPL = os.path.join(HISTORY_DIR, "threads_{username}.json")
 
-INGEST_LOG = os.path.join(DATA_DIR, "ingested_files.json")
-if not os.path.exists(INGEST_LOG):
-    with open(INGEST_LOG, "w") as f:
-        json.dump({}, f)
-
-# ------------------ FastAPI App ------------------
 app = FastAPI(title="QADS Chatbot API", version="2.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "../frontend")
 
-# Serve frontend files (keeps your existing URLs working)
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
@@ -76,8 +66,6 @@ def background_ingest():
 def startup_event():
     threading.Thread(target=background_ingest, daemon=True).start()
 
-# ------------------ Health ------------------
-
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
@@ -94,8 +82,7 @@ class ThreadUpdate(BaseModel):
 
 class ThreadSync(BaseModel):
     username: str
-    session_id: str
-    messages: list
+    messages: List[dict]
 
 class User(BaseModel):
     username: str
@@ -130,9 +117,6 @@ def save_threads(username, threads):
 
 @app.post("/register")
 async def register(user: User):
-    if not user.username or not user.password:
-        raise HTTPException(status_code=400, detail="Username and password required")
-
     users = {}
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE, "r") as f:
@@ -185,11 +169,21 @@ async def chat_endpoint(message: ChatMessage):
 
     threads = load_threads(message.username)
     thread_id = message.thread_id or f"thread_{int(datetime.now().timestamp())}"
-    threads.setdefault(thread_id, {"id": thread_id, "title": message.query[:30], "messages": []})
-    threads[thread_id]["messages"] += [
+
+    if thread_id not in threads:
+        threads[thread_id] = {
+            "id": thread_id,
+            "title": message.query[:30],
+            "created_at": str(datetime.now()),
+            "updated_at": str(datetime.now()),
+            "messages": []
+        }
+
+    threads[thread_id]["messages"].extend([
         {"role": "user", "content": message.query, "ts": str(datetime.now())},
         {"role": "assistant", "content": response, "ts": str(datetime.now())}
-    ]
+    ])
+    threads[thread_id]["updated_at"] = str(datetime.now())
     save_threads(message.username, threads)
 
     return {"ok": True, "response": response, "thread_id": thread_id}
@@ -197,14 +191,21 @@ async def chat_endpoint(message: ChatMessage):
 # ==================== THREADS ====================
 
 @app.get("/api/threads")
-async def list_threads(username: str):
-    return {"ok": True, "threads": list(load_threads(username).values())}
+async def list_threads(username: str = Query(...)):
+    threads = load_threads(username)
+    return {"ok": True, "threads": list(threads.values())}
 
 @app.post("/api/threads")
 async def create_thread_api(payload: ThreadCreate):
     threads = load_threads(payload.username)
     tid = f"thread_{int(datetime.now().timestamp())}"
-    threads[tid] = {"id": tid, "title": payload.title, "messages": []}
+    threads[tid] = {
+        "id": tid,
+        "title": payload.title or "New Chat",
+        "created_at": str(datetime.now()),
+        "updated_at": str(datetime.now()),
+        "messages": []
+    }
     save_threads(payload.username, threads)
     return {"ok": True, "thread": threads[tid]}
 
