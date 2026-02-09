@@ -4,6 +4,7 @@ import sys
 import json
 import bcrypt
 import threading
+import time
 from datetime import datetime
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Query, Response
@@ -64,9 +65,20 @@ def serve_login():
 def serve_instruction():
     return FileResponse(os.path.join(FRONTEND_DIR, "instruction.html"))
 
-# Serve static files exactly as frontend expects: /static/js/*, /static/css/*
+# Serve static exactly as frontend expects: /static/js/*, /static/css/*
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+# Favicon (supports both .ico and .svg)
+@app.get("/favicon.ico")
+def favicon():
+    ico = os.path.join(FRONTEND_DIR, "favicon.ico")
+    svg = os.path.join(FRONTEND_DIR, "favicon.svg")
+    if os.path.exists(ico):
+        return FileResponse(ico)
+    if os.path.exists(svg):
+        return FileResponse(svg)
+    raise HTTPException(status_code=404)
 
 # ------------------ Middleware ------------------
 
@@ -77,28 +89,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ------------------ Background PDF Ingestion ------------------
+# ------------------ Vector Store (load ONCE) ------------------
 
-def background_ingest():
+VECTOR_READY = False
+
+def background_ingest_once():
+    global VECTOR_READY
     try:
-        print(f"[LOG] Ingesting PDFs from {BOOKS_FOLDER_PATH}...")
+        print(f"[LOG] Ingesting PDFs from {BOOKS_FOLDER_PATH} (startup only)...")
         chunks = load_and_chunk_pdfs(BOOKS_FOLDER_PATH)
         print(f"[LOG] Generated {len(chunks)} chunks. Setting up vector store...")
         cohere_client, pinecone_client = get_clients()
         setup_vector_store(chunks, cohere_client, pinecone_client)
-        print("[LOG] Vector store setup complete!")
+        VECTOR_READY = True
+        print("[LOG] Vector store ready ✅")
     except Exception as e:
         print(f"[WARNING] Vector store setup failed: {e}")
+        VECTOR_READY = False
 
 @app.on_event("startup")
 def startup_event():
-    threading.Thread(target=background_ingest, daemon=True).start()
+    threading.Thread(target=background_ingest_once, daemon=True).start()
 
 # ------------------ Health ------------------
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "vector_ready": VECTOR_READY}
 
 # ==================== MODELS ====================
 
@@ -175,23 +192,40 @@ async def login(user: User):
 
     return {"ok": True, "username": user.username, "token": user.username}
 
-# ==================== CHAT ====================
+# ==================== CHAT (FAST PATH) ====================
 
 @app.post("/api/chat")
 @app.post("/chat")
 async def chat_endpoint(message: ChatMessage):
     context = ""
-    try:
-        cohere_client, pinecone_client = get_clients()
-        index = pinecone_client.Index(config.PINECONE_INDEX_NAME)
-        ctx_list = retrieve_context(message.query, cohere_client, index)
-        context = "\n\n".join(ctx_list) if ctx_list else ""
-    except Exception as e:
-        print(f"[WARNING] Vector store retrieval failed: {e}")
+
+    # Fast, non-blocking retrieval (skip if vector not ready)
+    if VECTOR_READY:
+        try:
+            start = time.time()
+            cohere_client, pinecone_client = get_clients()
+            index = pinecone_client.Index(config.PINECONE_INDEX_NAME)
+            ctx_list = retrieve_context(message.query, cohere_client, index)
+            context = "\n\n".join(ctx_list) if ctx_list else ""
+            print(f"[LOG] Context retrieval took {time.time() - start:.2f}s")
+        except Exception as e:
+            print(f"[WARNING] Vector retrieval failed: {e}")
+            context = ""
 
     groq_client = get_groq_client()
-    chunks = list(generate_llm_response([{"role": "user", "content": message.query}], context, groq_client))
-    response = "".join(chunks).strip() or "I'm having trouble generating a response right now. Please try again."
+    try:
+        chunks = list(generate_llm_response(
+            [{"role": "user", "content": message.query}],
+            context,
+            groq_client
+        ))
+        response = "".join(chunks).strip()
+    except Exception as e:
+        print(f"[ERROR] LLM failed: {e}")
+        response = ""
+
+    if not response:
+        response = "The AI service is currently slow. Please try again in a few seconds."
 
     threads = load_threads(message.username)
     thread_id = message.thread_id or f"thread_{int(datetime.now().timestamp())}"
