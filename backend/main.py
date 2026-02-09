@@ -4,8 +4,9 @@ import sys
 import json
 import requests
 import bcrypt
+import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -16,7 +17,7 @@ from dotenv import load_dotenv
 # Add backend directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Local imports
+# Local imports (keep as-is)
 from config import config
 from utils.pdf_processor import load_and_chunk_pdfs
 from models.embeddings import get_clients, setup_vector_store, retrieve_context
@@ -27,9 +28,9 @@ BOOKS_FOLDER_PATH = config.BOOKS_FOLDER_PATH
 load_dotenv()
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 
-# File paths
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
+
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 HISTORY_DIR = os.path.join(DATA_DIR, "history")
 os.makedirs(HISTORY_DIR, exist_ok=True)
@@ -41,7 +42,7 @@ if not os.path.exists(INGEST_LOG):
     with open(INGEST_LOG, "w") as f:
         json.dump({}, f)
 
-# FastAPI setup
+# ------------------ App ------------------
 app = FastAPI(title="QADS Chatbot API", version="2.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -81,7 +82,7 @@ else:
 
 class ThreadCreate(BaseModel):
     username: str
-    title: Optional[str] = "New Chat"
+    title: Optional[str] = "New conversation"
 
 class ThreadUpdate(BaseModel):
     username: str
@@ -100,6 +101,7 @@ class ChatMessage(BaseModel):
     username: str
     query: str
     thread_id: Optional[str] = None
+    session_id: Optional[str] = None
 
 # ==================== HELPERS ====================
 
@@ -130,6 +132,8 @@ async def health_check():
 @app.get("/")
 def serve_index():
     return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
+# -------- Auth --------
 
 @app.post("/register")
 async def register(user: User):
@@ -165,11 +169,93 @@ async def login(user: User):
 
     return {"ok": True, "username": user.username}
 
+# -------- Threads API (matches frontend chat.js) --------
+
+@app.get("/api/threads")
+async def list_threads(username: str):
+    threads = load_threads(username)
+    out = []
+    for tid, t in threads.items():
+        out.append({
+            "id": tid,
+            "title": t.get("title", "New conversation"),
+            "updatedAt": t.get("updatedAt"),
+            "lastTs": t.get("lastTs"),
+        })
+    return {"ok": True, "threads": out}
+
+@app.post("/api/threads")
+async def create_thread(payload: ThreadCreate):
+    threads = load_threads(payload.username)
+    tid = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+
+    threads[tid] = {
+        "id": tid,
+        "title": payload.title or "New conversation",
+        "messages": [],
+        "updatedAt": now,
+        "lastTs": None,
+    }
+
+    save_threads(payload.username, threads)
+    return {"ok": True, "thread": threads[tid]}
+
+@app.get("/api/threads/{thread_id}")
+async def get_thread(thread_id: str, username: str):
+    threads = load_threads(username)
+    if thread_id not in threads:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return {"ok": True, "thread": threads[thread_id]}
+
+@app.post("/api/threads/{thread_id}/sync")
+async def sync_thread(thread_id: str, payload: ThreadSync, username: str):
+    threads = load_threads(username)
+    if thread_id not in threads:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    threads[thread_id]["messages"] = payload.messages
+    now = datetime.utcnow().isoformat()
+    threads[thread_id]["updatedAt"] = now
+    threads[thread_id]["lastTs"] = now
+
+    save_threads(username, threads)
+    return {"ok": True, "thread": threads[thread_id]}
+
+@app.patch("/api/threads/{thread_id}")
+async def rename_thread(thread_id: str, payload: ThreadUpdate, username: str):
+    threads = load_threads(username)
+    if thread_id not in threads:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    threads[thread_id]["title"] = payload.title
+    threads[thread_id]["updatedAt"] = datetime.utcnow().isoformat()
+    save_threads(username, threads)
+    return {"ok": True}
+
+@app.delete("/api/threads/{thread_id}")
+async def delete_thread(thread_id: str, username: str):
+    threads = load_threads(username)
+    if thread_id not in threads:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    del threads[thread_id]
+    save_threads(username, threads)
+    return {"ok": True}
+
+# -------- Chat API --------
+
 @app.post("/api/chat")
 async def chat_endpoint(message: ChatMessage):
-    return {"ok": True, "response": "Backend is live 🎉", "thread_id": "demo"}
+    # For now: simple live check response (replace with LLM logic later)
+    return {
+        "ok": True,
+        "response": "Backend is live 🎉",
+        "ts": datetime.utcnow().isoformat(),
+        "thread_id": message.thread_id or "demo"
+    }
 
-# ==================== RUN ====================
+# ==================== RUN (Local only) ====================
 
 if __name__ == "__main__":
     import uvicorn
